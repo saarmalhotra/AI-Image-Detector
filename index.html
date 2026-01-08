@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Image Detector - Real vs Generated</title>
+    <title>AI Image Detector</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
     <style>
@@ -41,54 +41,25 @@
             margin-bottom: 10px;
             text-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
-        .model-info {
-            background: rgba(255,255,255,0.2);
-            padding: 15px;
-            border-radius: 15px;
-            margin-top: 15px;
-            backdrop-filter: blur(10px);
-        }
         .input-section {
             padding: 40px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .input-group {
-            margin-bottom: 25px;
-        }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 700;
-            color: #444;
-            font-size: 1.1em;
-        }
-        input[type="url"] {
-            width: 100%;
-            padding: 18px;
-            border: 3px solid #e8ecf4;
-            border-radius: 15px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            background: #f8fafc;
-        }
-        input[type="url"]:focus {
-            outline: none;
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+            text-align: center;
         }
         .btn {
             background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
             color: white;
             border: none;
-            padding: 18px 40px;
+            padding: 20px 50px;
             border-radius: 15px;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
             width: 100%;
+            max-width: 300px;
             text-transform: uppercase;
             letter-spacing: 1px;
+            margin: 15px 0;
         }
         .btn:hover:not(:disabled) {
             transform: translateY(-3px);
@@ -97,7 +68,6 @@
         .btn:disabled {
             opacity: 0.7;
             cursor: not-allowed;
-            transform: none;
         }
         .status {
             padding: 20px;
@@ -106,6 +76,7 @@
             text-align: center;
             font-weight: 600;
             font-size: 1.1em;
+            display: none;
         }
         .status.loading {
             background: linear-gradient(135deg, #fef3c7, #fde68a);
@@ -115,10 +86,6 @@
         .status.success {
             background: linear-gradient(135deg, #dcfce7, #bbf7d0);
             color: #166534;
-        }
-        .status.error {
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-            color: #dc2626;
         }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -164,6 +131,11 @@
             height: 100%;
             object-fit: cover;
             border-radius: 20px;
+        }
+        .predict-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            font-size: 22px;
+            padding: 25px 50px;
         }
         .prediction-section {
             padding: 40px;
@@ -255,10 +227,6 @@
             header h1 {
                 font-size: 2em;
             }
-            .container {
-                margin: 10px;
-                border-radius: 20px;
-            }
         }
     </style>
 </head>
@@ -267,18 +235,13 @@
         <header>
             <h1>🧠 AI Image Detector</h1>
             <p>Real vs AI-Generated Images Classification</p>
-            <div class="model-info">
-                <strong>Model Loaded:</strong> https://teachablemachine.withgoogle.com/models/94tkMGHCu/
-            </div>
         </header>
 
         <div class="input-section">
-            <div class="input-group">
-                <label for="modelUrl">Teachable Machine Model URL:</label>
-                <input type="url" id="modelUrl" value="https://teachablemachine.withgoogle.com/models/94tkMGHCu/" readonly>
-            </div>
-            <button class="btn" onclick="loadModel()">🚀 Load Model & Start</button>
-            <div id="status"></div>
+            <button class="btn" onclick="initApp()" id="startBtn">
+                🚀 Start Detection
+            </button>
+            <div id="status" class="status"></div>
         </div>
 
         <div class="preview-section" id="previewSection">
@@ -297,7 +260,7 @@
                     </div>
                 </div>
             </div>
-            <button class="btn" onclick="predict()" id="predictBtn" disabled>🔮 Classify Image</button>
+            <button class="btn predict-btn" onclick="predict()" id="predictBtn" disabled>🔮 Classify Now</button>
         </div>
 
         <div class="prediction-section" id="predictionSection" style="display: none;">
@@ -312,25 +275,31 @@
     <script>
         let model = null;
         let webcam = null;
-        let isModelLoaded = false;
+        let isAppReady = false;
         let isWebcamRunning = false;
         let maxPredictions = 0;
-
         const modelUrl = 'https://teachablemachine.withgoogle.com/models/94tkMGHCu/';
-        const URL = document.getElementById('modelUrl');
+
         const statusEl = document.getElementById('status');
         const previewSection = document.getElementById('previewSection');
         const predictionSection = document.getElementById('predictionSection');
         const predictBtn = document.getElementById('predictBtn');
+        const startBtn = document.getElementById('startBtn');
         const labelContainer = document.getElementById('labelContainer');
 
         function showStatus(message, type = 'loading') {
             statusEl.textContent = message;
             statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 4000);
         }
 
-        async function loadModel() {
-            showStatus('🔄 Loading your AI Image Detector model...', 'loading');
+        async function initApp() {
+            startBtn.disabled = true;
+            startBtn.textContent = '🔄 Initializing...';
+            showStatus('Loading AI model...', 'loading');
             
             try {
                 const modelURL = modelUrl + 'model.json';
@@ -339,27 +308,24 @@
                 model = await tmImage.load(modelURL, metadataURL);
                 maxPredictions = model.getTotalClasses();
 
-                isModelLoaded = true;
-                showStatus(`✅ Model loaded successfully! Ready to detect Real vs AI Images (Classes: ${maxPredictions})`, 'success');
+                isAppReady = true;
+                startBtn.style.display = 'none';
                 previewSection.style.display = 'block';
                 predictBtn.disabled = false;
-                predictBtn.textContent = '🔮 Classify Image';
+                showStatus(`✅ Ready! Detecting ${maxPredictions} classes`, 'success');
             } catch (error) {
-                console.error('Model loading error:', error);
-                showStatus('❌ Failed to load model. Check internet connection and try again.', 'error');
+                console.error('Init error:', error);
+                showStatus('❌ Failed to load. Refresh and try again.', 'loading');
+                startBtn.disabled = false;
+                startBtn.textContent = '🚀 Start Detection';
             }
         }
-
-        // Auto-load model on page load
-        window.onload = () => {
-            loadModel();
-        };
 
         async function toggleWebcam() {
             const webcamContainer = document.getElementById('webcam-container');
             
             if (!isWebcamRunning) {
-                webcam = new tmImage.Webcam(350, 350, true); // flip horizontal
+                webcam = new tmImage.Webcam(350, 350, true);
                 await webcam.setup();
                 await webcam.play();
                 window.requestAnimationFrame(loop);
@@ -376,8 +342,8 @@
         }
 
         async function loop() {
-            if (isWebcamRunning && webcam && isModelLoaded) {
-                webcam.update(); // update the webcam frame
+            if (isWebcamRunning && webcam && isAppReady) {
+                webcam.update();
                 await predict();
                 window.requestAnimationFrame(loop);
             }
@@ -401,7 +367,7 @@
         }
 
         async function predict() {
-            if (!model || !isModelLoaded) return;
+            if (!model || !isAppReady) return;
 
             let prediction;
             const imagePreview = document.getElementById('image-preview');
@@ -410,20 +376,16 @@
                 prediction = await model.predict(webcam.canvas);
             } else if (imagePreview.children.length > 0) {
                 const canvas = imagePreview.querySelector('canvas');
-                if (canvas) {
-                    prediction = await model.predict(canvas);
-                } else {
-                    return;
-                }
+                if (canvas) prediction = await model.predict(canvas);
+                else return;
             } else {
                 return;
             }
 
-            // Display predictions
             predictionSection.style.display = 'block';
             labelContainer.innerHTML = '';
 
-            prediction.forEach((pred, i) => {
+            prediction.forEach((pred) => {
                 const probability = (pred.probability * 100).toFixed(1);
                 const barWidth = (pred.probability * 100) + '%';
 
@@ -442,5 +404,3 @@
     </script>
 </body>
 </html>
-
-
